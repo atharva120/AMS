@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Admin Panel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Helvetica, sans-serif;
+    }
+
+    body {
+      background-color: #1A2526;
+      color: #fff;
+      padding: 20px;
+    }
+
+    /* Navigation Bar */
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #1A2526;
+      padding: 10px 20px;
+      border-bottom: 1px solid #2C3E50;
+    }
+
+    .navbar .logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .navbar .nav-links a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 1rem;
+      padding: 5px 10px;
+      border-radius: 5px;
+    }
+
+    .navbar .nav-links a:hover {
+      color: #28A745;
+    }
+
+    .navbar .admin-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .navbar .admin-info i {
+      color: #fff;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+      margin: 20px 0;
+    }
+
+    .dashboard-header h1 {
+      font-size: 1.8rem;
+      font-weight: 500;
+    }
+
+    .dashboard-header p {
+      color: #A0A0A0;
+      font-size: 0.9rem;
+    }
+
+    /* Card Styling */
+    .card {
+      background-color: #2C3E50;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    /* Form Styling */
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #A0A0A0;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 8px;
+      background-color: #3A4B5C;
+      border: none;
+      border-radius: 5px;
+      color: white;
+    }
+
+    .form-group input::placeholder {
+      color: #A0A0A0;
+    }
+
+    /* Button Styling */
+    button {
+      background-color: #28A745;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    button:hover {
+      background-color: #218838;
+    }
+
+    .delete-btn {
+      background-color: #DC3545;
+    }
+
+    .delete-btn:hover {
+      background-color: #C82333;
+    }
+
+    /* Table Styling */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      border: 1px solid #3A4B5C;
+      padding: 12px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #3A4B5C;
+      color: #fff;
+    }
+
+    tr:nth-child(even) {
+      background-color: #34495E;
+    }
+
+    tr:hover {
+      background-color: #3A4B5C;
+    }
+
+    /* Notification Styling */
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      border-radius: 5px;
+      color: white;
+      font-weight: bold;
+      z-index: 1000;
+      animation: fadeInOut 3s ease-in-out forwards;
+    }
+
+    .notification.success {
+      background-color: #28A745;
+    }
+
+    .notification.error {
+      background-color: #DC3545;
+    }
+
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(-20px); }
+      10% { opacity: 1; transform: translateY(0); }
+      90% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="logo">AMS - Super Admin</div>
+    <div class="nav-links">
+      <a href="/combined_dashboard"><i class="fas fa-tachometer-alt"></i> Combined Dashboard</a>
+      <a href="/logout"><i class="fas fa-sign-out"></i> Logout</a>
+    </div>
+    <div class="admin-info">
+      <i class="fas fa-user-shield"></i>
+      <span>Super Admin</span>
+    </div>
+  </nav>
+
+  <!-- Dashboard Header -->
+  <div class="dashboard-header">
+    <h1>Super Admin Dashboard</h1>
+    <p>Manage companies and view registered users</p>
+  </div>
+
+  <!-- Add Company Form -->
+  <div class="card">
+    <h2>Add New Company</h2>
+    <form action="/super_admin" method="POST">
+      <div class="form-group">
+        <label for="company_name">Company Name</label>
+        <input type="text" id="company_name" name="company_name" placeholder="Enter company name" required>
+      </div>
+      <div class="form-group">
+        <label for="company_username">Username</label>
+        <input type="text" id="company_username" name="company_username" placeholder="Enter username" required>
+      </div>
+      <div class="form-group">
+        <label for="company_password">Password</label>
+        <input type="password" id="company_password" name="company_password" placeholder="Enter password" required>
+      </div>
+      <button type="submit">Add Company</button>
+    </form>
+  </div>
+
+
+  <!-- Companies and Users Table -->
+<div class="card">
+    <h2>Registered Companies</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Company ID</th>
+                <th>Company Name</th>
+                <th>Username</th>
+                <th>Registered Users</th>
+                <th>Download Attendance</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for company in companies %}
+                <tr>
+                    <td>{{ company[0] }}</td>
+                    <td><a href="{{ url_for('company_dashboard', company_id=company[0]) }}" class="text-green-400 hover:text-green-600">{{ company[1] }}</a></td>
+                    <td>{{ company[2] }}</td>
+                    <td>
+                        {% if users[company[0]] %}
+                            {{ users[company[0]]|length }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form action="{{ url_for('download_company_attendance') }}" method="GET">
+                            <input type="hidden" name="company_id" value="{{ company[0] }}">
+                            <input type="month" name="month" value="{{ '2025-05' }}" required>
+                            <button type="submit" style="background-color: #007BFF; margin-top: 5px;">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </form>
+                    </td>
+                    <td>
+                        <!-- Delete Form -->
+                        <form action="/super_admin" method="POST" style="display: inline;">
+                            <input type="hidden" name="delete_id" value="{{ company[0] }}">
+                            <button type="submit" class="delete-btn" style="background-color: #dc3545; color: white; padding: 5px 10px; border: none; border-radius: 4px;">
+                                Delete
+                            </button>
+                        </form>
+
+                        <!-- Edit Link -->
+                        <a href="{{ url_for('edit_company', company_id=company[0]) }}" 
+                           class="edit-btn" 
+                           style="background-color: #28a745; color: white; padding: 5px 10px; margin-left: 5px; text-decoration: none; border-radius: 4px;">
+                            Edit
+                        </a>
+                    </td>
+                  
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+
+  <script>
+    // Close notification (if any)
+    document.querySelectorAll('.notification .close-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.parentElement.style.display = 'none';
+      });
+    });
+  </script>
+</body>
+</html>

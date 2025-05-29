@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ company_name }} company_name }} Dashboard - AMS</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding:  0;
+      margin: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, ': 'Segoe UI', SerifHelvetica, sans-serif;
+    }
+
+    body {
+      background-color: #1A2526;
+      color: #fff;
+      padding: 20px;
+    }
+
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #1A2526;
+      padding: 10px 20px;
+      border-bottom: 1px solid #2C3E50;
+    }
+
+    .navbar .logo {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .navbar .nav-links a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 1rem;
+      padding: 5px 10px;
+      border-radius: 5px;
+    }
+
+    .navbar .nav-links a:hover {
+      color: #28A745;
+      text-decoration: none;
+    }
+
+    .navbar .admin-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .navbar .admin-info i {
+      color: #fff;
+    }
+
+    .dashboard-header {
+      margin: 20px 0;
+    }
+
+    .dashboard-header h1 {
+      font-size: 1.8rem;
+      font-weight: 500;
+    }
+
+    .dashboard-header p {
+      color: #A0A0A0;
+      font-size: 0.9rem;
+    }
+
+    .card {
+      background-color: #2C3E50;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      border: 1px solid #3A4B5C;
+      padding: 12px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #3A4B5C;
+      color: #fff;
+    }
+
+    tr:nth-child(even) {
+      background-color: #34495E;
+    }
+
+    tr:hover {
+      background-color: #3A4B5C;
+    }
+
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      border-radius: 5px;
+      color: white;
+      font-weight: bold;
+      z-index: 1000;
+      animation: fadeInOut 3s ease-in-out forwards;
+    }
+
+    .notification.success {
+      background-color: #28A745;
+    }
+
+    .notification.error {
+      background-color: #DC3545;
+    }
+
+    .chart-container {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    #attendanceSummary {
+      display: none;
+    }
+
+    .summary-text {
+      font-size: 1rem;
+      margin-bottom: 10px;
+    }
+
+    .filter-form {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #A0A0A0;
+    }
+
+    .form-group select, .form-group input {
+      padding: 8px;
+      background-color: #3A4B5C;
+      border: none;
+      border-radius: 5px;
+      color: white;
+      font-size: 1rem;
+    }
+
+    .form-group input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+    }
+
+    button {
+      background-color: #28A745;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    button:hover {
+      background-color: #218838;
+    }
+
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(-20px); }
+      10% { opacity: 1; transform: translateY(0); }
+      90% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="logo">AMS - Super Admin</div>
+    <div class="nav-links">
+      <a href="{{ url_for('super_admin') }}"><i class="fas fa-home"></i> Dashboard</a>
+      <a href="{{ url_for('combined_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Combined Dashboard</a>
+      <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out"></i> Logout</a>
+    </div>
+    <div class="admin-info">
+      <i class="fas fa-user-shield"></i>
+      <span>Super Admin</span>
+    </div>
+  </nav>
+
+  <!-- Dashboard Header -->
+  <div class="dashboard-header">
+    <h1>{{ company_name }} Dashboard</h1>
+    <p>Attendance details for {{ company_name }}</p>
+  </div>
+
+  <!-- User Doughnut Chart -->
+  <div class="card">
+    <h2>User Distribution</h2>
+        <h3 id="chartTitle" style="text-align: center; margin-bottom: 15px;">User Distribution</h3>
+    <div class="chart-container">
+      <canvas id="userChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Attendance Summary -->
+  <div class="card" id="attendanceSummary">
+    <h2>Attendance Summary</h2>
+    <div id="summaryContent"></div>
+  </div>
+
+  <!-- Filter Form -->
+  <div class="card">
+    <h2>Filter Attendance Records</h2>
+    <form class="filter-form" action="{{ url_for('company_dashboard', company_id=company_id) }}" method="GET">
+      <div class="form-group">
+        <label for="filter_name">User Name</label>
+        <select id="filter_name" name="filter_name">
+          <option value="">All Users</option>
+          {% for user in users_list %}
+            <option value="{{ user }}" {% if filter_name == user %}selected{% endif %}>{{ user }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="filter_month">Month</label>
+        <select id="filter_month" name="filter_month">
+          <option value="">All Months</option>
+          {% for month in available_months %}
+          
+            <option value="{{ month.value }}" {% if filter_month == month.value %}selected{% endif %}>{{ month.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="filter_date">Date</label>
+        <input type="date" id="filter_date" name="filter_date" value="{{ filter_date or '' }}">
+      </div>
+            <div class="form-group">
+        <label for="filter_start_date">Start Date</label>
+        <input type="date" id="filter_start_date" name="filter_start_date" value="{{ filter_start_date or '' }}">
+      </div>
+      <div class="form-group">
+        <label for="filter_end_date">End Date</label>
+        <input type="date" id="filter_end_date" name="filter_end_date" value="{{ filter_end_date or '' }}">
+      </div>
+      <button type="submit">Filter</button>
+    </form>
+  </div>
+
+  <!-- Attendance Records -->
+  <div class="card">
+    <h2>Attendance Records</h2>
+    {% if attendance_records %}
+      <table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Date</th>
+            <th>Time Range</th>
+            <th>Status</th>
+            <th>Hours</th>
+            <th>Day Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for record in attendance_records %}
+        <tr>
+            <td><a href="{{ url_for('student_dashboard', company_id=company_id, name=record.name) }}">{{ record.name }}</a></td>
+            <td>{{ record.date }}</td>
+            <td>{{ record.time_range }}</td>
+            <td>{{ record.status }}</td>
+            <td>{{ record.hours }}</td>
+            <td>{{ record.day_status }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+    {% else %}
+      <p>No attendance records match the selected filters.</p>
+    {% endif %}
+  </div>
+
+  <script>
+    // Close notification
+    document.querySelectorAll('.notification .close-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        btn.parentElement.style.display = 'none';
+      });
+    });
+
+    // Initialize doughnut chart
+    const userNames = {{ users_list|tojson|safe }};
+    const attendanceData = {{ user_attendance_data|tojson|safe }};
+    const ctx = document.getElementById('userChart').getContext('2d');
+    const selectedUser = {{ filter_name|tojson|safe }} || '';
+
+    // Generate random colors for chart segments
+    function getRandomColor() {
+      const letters = '0123456789ABCDEF';
+      let color = '#';
+      for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+
+    const chartData = {
+      labels: userNames,
+      datasets: [{
+        data: userNames.map(() => 1), // Equal weight for each user
+        backgroundColor: userNames.map(() => getRandomColor()),
+        hoverOffset: 20
+      }]
+    };
+    // Update chart title
+        const chartTitle = document.getElementById('chartTitle');
+
+    const userChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: chartData,
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              color: '#FFFFFF'
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.label || '';
+                const value = context.raw || 0;
+                if (label === 'Present' || label === 'Absent' || label === 'Leaves Taken') {
+                  return `${label}: ${value} days`;
+                }
+                return `${label}: ${value}`;
+              }
+            }
+          }
+        },
+        onClick: (event, elements) => {
+          if (elements.length > 0 && !selectedUser) {  // Only allow click interaction if no user is filtered
+            const index = elements[0].index;
+            const name = userNames[index];
+            const summary = attendanceData[name];
+            const summaryContent = `
+              <p class="summary-text"><strong>User:</strong> ${name}</p>
+              <p class="summary-text"><strong>Days Present:</strong> ${summary.present_days}</p>
+              <p class="summary-text"><strong>Days Absent:</strong> ${summary.absent_days}</p>
+              <p class="summary-text"><strong>Leaves Taken:</strong> ${summary.leaves_taken}/2</p>
+              <p class="summary-text"><strong>Leaves Remaining:</strong> ${2 - summary.leaves_taken}</p>
+            `;
+            document.getElementById('summaryContent').innerHTML = summaryContent;
+            document.getElementById('attendanceSummary').style.display = 'block';
+          }
+        }
+      }
+    });
+
+    // If a specific user is selected, update the chart to show their attendance summary
+    if (selectedUser && attendanceData[selectedUser]) {
+      const userSummary = attendanceData[selectedUser];
+      userChart.data = {
+        labels: ['Present', 'Absent', 'Leaves Taken'],
+        datasets: [{
+          data: [
+            userSummary.present_days || 0,
+            userSummary.absent_days || 0,
+            userSummary.leaves_taken || 0
+          ],
+          backgroundColor: ['#28A745', '#DC3545', '#0D6EFD'],
+          hoverOffset: 20
+        }]
+      };
+      chartTitle.textContent = `${selectedUser}'s Attendance Summary`;
+      userChart.update();
+    } else {
+      chartTitle.textContent = 'User Distribution';
+    }
+
+    // Reset summary card when a user is selected
+        // Reset summary card only if no user is selected
+    if (!selectedUser) {
+      document.getElementById('attendanceSummary').style.display = 'none';
+    }
+
+    document.querySelector('.filter-form').addEventListener('submit', function(e) {
+    const startDate = document.getElementById('filter_start_date').value;
+    const endDate = document.getElementById('filter_end_date').value;
+    if ((startDate && !endDate) || (!startDate && endDate)) {
+      e.preventDefault();
+      alert('Please provide both start and end dates for the date range filter.');
+    }
+  });
+  </script>
+</body>
+</html>

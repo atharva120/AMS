@@ -52,7 +52,7 @@ CREDS = Credentials.from_service_account_info(credential_dict, scopes=SCOPES)
 service = build('sheets', 'v4', credentials=CREDS)
 
 SHEET_ID = os.getenv('GOOGLE_SHEET_ID')
-SUPER_ADMIN_USERNAME = 'hod'
+SUPER_ADMIN_USERNAME = 'ams-hod'
 SUPER_ADMIN_PASSWORD = 'admin123'
 
 IMAGES_DIR = 'images'
@@ -65,62 +65,289 @@ if not os.path.exists(IMAGES_DIR):
 if not os.path.exists(TEMP_CHECKIN_IMAGES_DIR):
     os.makedirs(TEMP_CHECKIN_IMAGES_DIR)
 
+# @retry(
+#     stop=stop_after_attempt(3),
+#     wait=wait_exponential(multiplier=1, min=4, max=10),
+#     retry=retry_if_exception_type(HttpError),
+#     before_sleep=lambda retry_state: logger.info(f"Retrying API call (attempt {retry_state.attempt_number}) due to error: {retry_state.outcome.exception()}"))
+# def safe_api_call(api_call):
+#     import time
+#     time.sleep(1)  # Add a 1-second delay to avoid rate limiting
+#     return api_call.execute()
+
+# # def init_sheets():
+# #     # Check if Companies sheet exists
+# #     try:
+# #         safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A1'))
+# #     except HttpError as e:
+# #         if e.resp.status in [500, 503]:
+# #             logger.error(f"Failed to check Companies sheet after retries: {e}")
+# #             raise Exception("Google Sheets API is unavailable after retries. Please try again later.")
+# #         # If the sheet doesn't exist, create it
+# #         safe_api_call(
+# #             service.spreadsheets().batchUpdate(
+# #                 spreadsheetId=SHEET_ID,
+# #                 body={'requests': [{'addSheet': {'properties': {'title': 'Companies'}}}]}
+# #             )
+# #         )
+# #         safe_api_call(
+# #             service.spreadsheets().values().update(
+# #                 spreadsheetId=SHEET_ID,
+# #                 range='Companies!A1:D1',
+# #                 valueInputOption='RAW',
+# #                 body={'values': [['Company ID', 'Company Name', 'Username', 'Password']]}
+# #             )
+# #         )
+    
+# #     # Check if Users sheet exists
+# #     try:
+# #         safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Users!A1'))
+# #     except HttpError as e:
+# #         if e.resp.status in [500, 503]:
+# #             logger.error(f"Failed to check Users sheet after retries: {e}")
+# #             raise Exception("Google Sheets API is unavailable after retries. Please try again later.")
+# #         # If the sheet doesn't exist, create it
+# #         safe_api_call(
+# #             service.spreadsheets().batchUpdate(
+# #                 spreadsheetId=SHEET_ID,
+# #                 body={'requests': [{'addSheet': {'properties': {'title': 'Users'}}}]}
+# #             )
+# #         )
+# #         safe_api_call(
+# #             service.spreadsheets().values().update(
+# #                 spreadsheetId=SHEET_ID,
+# #                 range='Users!A1:B1',
+# #                 valueInputOption='RAW',
+# #                 body={'values': [['Company ID', 'User Name']]}
+# #             )
+# #         )
+
+
+# def init_sheets():
+#     # Check if Companies sheet exists
+#     try:
+#         safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A1'))
+#         logger.info("Companies sheet already exists")
+#     except HttpError as e:
+#         if e.resp.status == 400 and "Unable to parse range" in str(e):
+#             logger.info("Companies sheet does not exist, creating it...")
+#             # Create the Companies sheet
+#             safe_api_call(
+#                 service.spreadsheets().batchUpdate(
+#                     spreadsheetId=SHEET_ID,
+#                     body={'requests': [{'addSheet': {'properties': {'title': 'Companies'}}}]}
+#                 )
+#             )
+#             # Add headers to the Companies sheet
+#             safe_api_call(
+#                 service.spreadsheets().values().update(
+#                     spreadsheetId=SHEET_ID,
+#                     range='Companies!A1:D1',
+#                     valueInputOption='RAW',
+#                     body={'values': [['Company ID', 'Company Name', 'Username', 'Password']]}
+#                 )
+#             )
+#             logger.info("Companies sheet created successfully")
+#         elif e.resp.status in [500, 503]:
+#             logger.error(f"Failed to check Companies sheet after retries: {e}")
+#             raise Exception("Google Sheets API is unavailable after retries. Please try again later.")
+#         else:
+#             logger.error(f"Unexpected error when checking Companies sheet: {e}")
+#             raise e
+    
+#     # Check if Users sheet exists
+#     try:
+#         safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Users!A1'))
+#         logger.info("Users sheet already exists")
+#     except HttpError as e:
+#         if e.resp.status == 400 and "Unable to parse range" in str(e):
+#             logger.info("Users sheet does not exist, creating it...")
+#             # Create the Users sheet
+#             safe_api_call(
+#                 service.spreadsheets().batchUpdate(
+#                     spreadsheetId=SHEET_ID,
+#                     body={'requests': [{'addSheet': {'properties': {'title': 'Users'}}}]}
+#                 )
+#             )
+#             # Add headers to the Users sheet
+#             safe_api_call(
+#                 service.spreadsheets().values().update(
+#                     spreadsheetId=SHEET_ID,
+#                     range='Users!A1:B1',
+#                     valueInputOption='RAW',
+#                     body={'values': [['Company ID', 'User Name']]}
+#                 )
+#             )
+#             logger.info("Users sheet created successfully")
+#         elif e.resp.status in [500, 503]:
+#             logger.error(f"Failed to check Users sheet after retries: {e}")
+#             raise Exception("Google Sheets API is unavailable after retries. Please try again later.")
+#         else:
+#             logger.error(f"Unexpected error when checking Users sheet: {e}")
+#             raise e
+        
+
+        # Updated safe_api_call function - only retry server errors (500, 503), not client errors (400)
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type(HttpError),
-    before_sleep=lambda retry_state: logger.info(f"Retrying API call (attempt {retry_state.attempt_number}) due to error: {retry_state.outcome.exception()}"))
+    retry=retry_if_exception_type(lambda e: isinstance(e, HttpError) and e.resp.status in [500, 503]),
+    before_sleep=lambda retry_state: logger.info(f"Retrying API call (attempt {retry_state.attempt_number}) due to server error: {retry_state.outcome.exception()}"))
 def safe_api_call(api_call):
     import time
     time.sleep(1)  # Add a 1-second delay to avoid rate limiting
     return api_call.execute()
 
+# Alternative approach - create a separate function for sheet checking that doesn't use retry
+def check_sheet_exists(sheet_name):
+    """Check if a sheet exists without retrying on 400 errors"""
+    try:
+        service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{sheet_name}!A1').execute()
+        return True
+    except HttpError as e:
+        if e.resp.status == 400 and "Unable to parse range" in str(e):
+            return False
+        else:
+            # For other errors, still raise them
+            raise e
+
+# def init_sheets():
+#     # Check if Companies sheet exists
+#     if not check_sheet_exists('Companies'):
+#         logger.info("Companies sheet does not exist, creating it...")
+#         try:
+#             # Create the Companies sheet
+#             safe_api_call(
+#                 service.spreadsheets().batchUpdate(
+#                     spreadsheetId=SHEET_ID,
+#                     body={'requests': [{'addSheet': {'properties': {'title': 'Companies'}}}]}
+#                 )
+#             )
+#             # Add headers to the Companies sheet
+#             safe_api_call(
+#                 service.spreadsheets().values().update(
+#                     spreadsheetId=SHEET_ID,
+#                     range='Companies!A1:D1',
+#                     valueInputOption='RAW',
+#                     body={'values': [['Company ID', 'Company Name', 'Username', 'Password']]}
+#                 )
+#             )
+#             logger.info("Companies sheet created successfully")
+#         except Exception as e:
+#             logger.error(f"Failed to create Companies sheet: {e}")
+#             raise e
+#     else:
+#         logger.info("Companies sheet already exists")
+    
+#     # Check if Users sheet exists
+#     if not check_sheet_exists('Users'):
+#         logger.info("Users sheet does not exist, creating it...")
+#         try:
+#             # Create the Users sheet
+#             safe_api_call(
+#                 service.spreadsheets().batchUpdate(
+#                     spreadsheetId=SHEET_ID,
+#                     body={'requests': [{'addSheet': {'properties': {'title': 'Users'}}}]}
+#                 )
+#             )
+#             # Add headers to the Users sheet
+#             safe_api_call(
+#                 service.spreadsheets().values().update(
+#                     spreadsheetId=SHEET_ID,
+#                     range='Users!A1:B1',
+#                     valueInputOption='RAW',
+#                     body={'values': [['Company ID', 'User Name']]}
+#                 )
+#             )
+#             logger.info("Users sheet created successfully")
+#         except Exception as e:
+#             logger.error(f"Failed to create Users sheet: {e}")
+#             raise e
+#     else:
+#         logger.info("Users sheet already exists")
+
 def init_sheets():
     # Check if Companies sheet exists
-    try:
-        safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A1'))
-    except HttpError as e:
-        if e.resp.status in [500, 503]:
-            logger.error(f"Failed to check Companies sheet after retries: {e}")
-            raise Exception("Google Sheets API is unavailable after retries. Please try again later.")
-        # If the sheet doesn't exist, create it
-        safe_api_call(
-            service.spreadsheets().batchUpdate(
-                spreadsheetId=SHEET_ID,
-                body={'requests': [{'addSheet': {'properties': {'title': 'Companies'}}}]}
+    if not check_sheet_exists('Companies'):
+        logger.info("Companies sheet does not exist, creating it...")
+        try:
+            # Create the Companies sheet
+            safe_api_call(
+                service.spreadsheets().batchUpdate(
+                    spreadsheetId=SHEET_ID,
+                    body={'requests': [{'addSheet': {'properties': {'title': 'Companies'}}}]}
+                )
             )
-        )
-        safe_api_call(
-            service.spreadsheets().values().update(
-                spreadsheetId=SHEET_ID,
-                range='Companies!A1:D1',
-                valueInputOption='RAW',
-                body={'values': [['Company ID', 'Company Name', 'Username', 'Password']]}
+            # Add headers to the Companies sheet - Updated to include Leaves Per Month column
+            safe_api_call(
+                service.spreadsheets().values().update(
+                    spreadsheetId=SHEET_ID,
+                    range='Companies!A1:E1',
+                    valueInputOption='RAW',
+                    body={'values': [['Company ID', 'Company Name', 'Username', 'Password', 'Leaves Per Month']]}
+                )
             )
-        )
+            logger.info("Companies sheet created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create Companies sheet: {e}")
+            raise e
+    else:
+        logger.info("Companies sheet already exists")
     
     # Check if Users sheet exists
-    try:
-        safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Users!A1'))
-    except HttpError as e:
-        if e.resp.status in [500, 503]:
-            logger.error(f"Failed to check Users sheet after retries: {e}")
-            raise Exception("Google Sheets API is unavailable after retries. Please try again later.")
-        # If the sheet doesn't exist, create it
-        safe_api_call(
-            service.spreadsheets().batchUpdate(
-                spreadsheetId=SHEET_ID,
-                body={'requests': [{'addSheet': {'properties': {'title': 'Users'}}}]}
+    if not check_sheet_exists('Users'):
+        logger.info("Users sheet does not exist, creating it...")
+        try:
+            # Create the Users sheet
+            safe_api_call(
+                service.spreadsheets().batchUpdate(
+                    spreadsheetId=SHEET_ID,
+                    body={'requests': [{'addSheet': {'properties': {'title': 'Users'}}}]}
+                )
             )
-        )
-        safe_api_call(
-            service.spreadsheets().values().update(
-                spreadsheetId=SHEET_ID,
-                range='Users!A1:B1',
-                valueInputOption='RAW',
-                body={'values': [['Company ID', 'User Name']]}
+            # Add headers to the Users sheet
+            safe_api_call(
+                service.spreadsheets().values().update(
+                    spreadsheetId=SHEET_ID,
+                    range='Users!A1:B1',
+                    valueInputOption='RAW',
+                    body={'values': [['Company ID', 'User Name']]}
+                )
             )
-        )
+            logger.info("Users sheet created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create Users sheet: {e}")
+            raise e
+    else:
+        logger.info("Users sheet already exists")
+    
+    # Check if Leaves sheet exists
+    if not check_sheet_exists('Leaves'):
+        logger.info("Leaves sheet does not exist, creating it...")
+        try:
+            # Create the Leaves sheet
+            safe_api_call(
+                service.spreadsheets().batchUpdate(
+                    spreadsheetId=SHEET_ID,
+                    body={'requests': [{'addSheet': {'properties': {'title': 'Leaves'}}}]}
+                )
+            )
+            # Add headers to the Leaves sheet
+            safe_api_call(
+                service.spreadsheets().values().update(
+                    spreadsheetId=SHEET_ID,
+                    range='Leaves!A1:F1',
+                    valueInputOption='RAW',
+                    body={'values': [['Company ID', 'User Name', 'Year-Month', 'Leaves Allowed', 'Leaves Taken', 'Leaves Carried']]}
+                )
+            )
+            logger.info("Leaves sheet created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create Leaves sheet: {e}")
+            raise e
+    else:
+        logger.info("Leaves sheet already exists")
+
 
 init_sheets()
 
@@ -1801,7 +2028,7 @@ def user_panel():
 
                         if not today_records:
                             noon = datetime.strptime(f"{today} 12:00:00", '%d/%m/%Y %H:%M:%S')
-                            if now < noon:
+                            if now > noon:
                                 action = "Check-in not allowed after 12:00 PM."
                             else:
                                 success, expected_checkout, day_status = log_attendance(company_id, name, 'checkin')

@@ -2191,7 +2191,7 @@ def user_panel():
 
                         if not today_records:
                             noon = datetime.strptime(f"{today} 12:00:00", '%d/%m/%Y %H:%M:%S')
-                            if now < noon:
+                            if now > noon:
                                 action = "Check-in not allowed after 12:00 PM."
                             else:
                                 success, expected_checkout, day_status = log_attendance(company_id, name, 'checkin')

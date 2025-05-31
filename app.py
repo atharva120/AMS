@@ -1768,6 +1768,104 @@ def admin_panel():
     )
 
 
+# @app.route('/add_user', methods=['GET', 'POST'])
+# def add_user():
+#     if session.get('role') != 'company_admin':
+#         return redirect(url_for('login'))
+
+#     company_id = session.get('company_id')
+#     if request.method == 'POST':
+#         try:
+#             if not request.is_json:
+#                 return jsonify({'error': 'Invalid request. JSON data required.'}), 400
+
+#             data = request.get_json()
+#             name = data.get('name').strip()
+#             images = data.get('images', [])
+
+#             if not name:
+#                 return jsonify({'error': 'Name is required.'}), 400
+#             if not images:
+#                 return jsonify({'error': 'No images provided.'}), 400
+
+#             encodings = load_encodings(company_id)
+#             if name in encodings:
+#                 return jsonify({'error': 'User already registered. Try a different name.'}), 400
+
+#             person_dir = os.path.join(IMAGES_DIR, company_id, name)
+#             if not os.path.exists(person_dir):
+#                 os.makedirs(person_dir)
+
+#             known_face_encodings = []
+#             image_count = 0
+#             for image_data in images:
+#                 try:
+#                     if ',' in image_data:
+#                         image_data = image_data.split(',')[1]
+#                     image_bytes = base64.b64decode(image_data)
+#                     image = Image.open(io.BytesIO(image_bytes))
+#                     frame = np.array(image)
+#                     if frame.shape[-1] == 4:
+#                         frame = frame[:, :, :3]
+#                     rgb_frame = frame
+#                     face_locations = face_recognition.face_locations(rgb_frame)
+#                     if len(face_locations) != 1:
+#                         continue
+#                     face_encoding = face_recognition.face_encodings(rgb_frame, face_locations)[0]
+#                     if face_encoding.shape != (128,):
+#                         continue
+#                     known_face_encodings.append(face_encoding)
+#                     image_count += 1
+#                     image_path = os.path.join(person_dir, f'{name}_{image_count}.jpg')
+#                     Image.fromarray(frame).save(image_path)
+#                 except Exception as e:
+#                     logger.error(f"Error processing image {image_count + 1}: {str(e)}")
+#                     continue
+
+#             if known_face_encodings:
+#                 if len(known_face_encodings) < 5:
+#                     return jsonify({'error': 'Insufficient face captures (less than 5). Try again with better lighting or more angles.'}), 400
+#                 encodings[name] = known_face_encodings
+#                 save_encodings(company_id, encodings)
+#                 safe_api_call(
+#                     service.spreadsheets().values().append(
+#                         spreadsheetId=SHEET_ID,
+#                         range='Users!A2:B2',
+#                         valueInputOption='RAW',
+#                         body={'values': [[company_id, name]]}
+#                     )
+#                 )
+#                 headers = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:1')).get('values', [[]])[0]
+#                 all_data = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A2:B')).get('values', [])
+#                 all_data.append([name])
+#                 safe_api_call(
+#                     service.spreadsheets().values().update(
+#                         spreadsheetId=SHEET_ID,
+#                         range=f'{company_id}!A1',
+#                         valueInputOption='RAW',
+#                         body={'values': [headers]}
+#                     )
+#                 )
+#                 if all_data:
+#                     safe_api_call(
+#                         service.spreadsheets().values().update(
+#                             spreadsheetId=SHEET_ID,
+#                             range=f'{company_id}!A2',
+#                             valueInputOption='RAW',
+#                             body={'values': all_data}
+#                         )
+#                     )
+#                 return jsonify({'success': f'User {name} registered successfully'}), 200
+#             else:
+#                 return jsonify({'error': 'No valid faces detected.'}), 400
+
+#         except Exception as e:
+#             logger.error(f"Error in add_user: {str(e)}")
+#             return jsonify({'error': f'Error: {str(e)}'}), 500
+
+#     return render_template('add_user.html', error=None)
+
+
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
     if session.get('role') != 'company_admin':
@@ -1797,6 +1895,7 @@ def add_user():
                 os.makedirs(person_dir)
 
             known_face_encodings = []
+            image_paths = []  # Track image paths for deletion
             image_count = 0
             for image_data in images:
                 try:
@@ -1818,6 +1917,8 @@ def add_user():
                     image_count += 1
                     image_path = os.path.join(person_dir, f'{name}_{image_count}.jpg')
                     Image.fromarray(frame).save(image_path)
+                    image_paths.append(image_path)  # Store path for later deletion
+                    logger.debug(f"Saved image: {image_path}")
                 except Exception as e:
                     logger.error(f"Error processing image {image_count + 1}: {str(e)}")
                     continue
@@ -1827,6 +1928,21 @@ def add_user():
                     return jsonify({'error': 'Insufficient face captures (less than 5). Try again with better lighting or more angles.'}), 400
                 encodings[name] = known_face_encodings
                 save_encodings(company_id, encodings)
+                logger.info(f"Face encodings saved for user {name} in company {company_id}")
+
+                # Delete temporary images
+                for img_path in image_paths:
+                    try:
+                        if os.path.exists(img_path):
+                            os.remove(img_path)
+                            logger.debug(f"Deleted image: {img_path}")
+                        else:
+                            logger.warning(f"Image not found for deletion: {img_path}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete image {img_path}: {str(e)}")
+                        # Continue to avoid affecting response
+
+                # Append user to Users sheet
                 safe_api_call(
                     service.spreadsheets().values().append(
                         spreadsheetId=SHEET_ID,
@@ -1835,26 +1951,72 @@ def add_user():
                         body={'values': [[company_id, name]]}
                     )
                 )
-                headers = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:1')).get('values', [[]])[0]
-                all_data = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A2:B')).get('values', [])
-                all_data.append([name])
-                safe_api_call(
-                    service.spreadsheets().values().update(
-                        spreadsheetId=SHEET_ID,
-                        range=f'{company_id}!A1',
-                        valueInputOption='RAW',
-                        body={'values': [headers]}
-                    )
-                )
-                if all_data:
+
+                # Check if company sheet exists
+                try:
+                    spreadsheet = safe_api_call(service.spreadsheets().get(spreadsheetId=SHEET_ID))
+                    sheet_exists = any(sheet['properties']['title'] == company_id for sheet in spreadsheet.get('sheets', []))
+                except HttpError as e:
+                    logger.error(f"Error checking if sheet {company_id} exists: {str(e)}")
+                    return jsonify({'error': f'Failed to verify company sheet: {str(e)}'}), 500
+
+                # Create company sheet if it doesn't exist
+                if not sheet_exists:
+                    try:
+                        requests = [{
+                            'addSheet': {
+                                'properties': {
+                                    'title': company_id,
+                                    'gridProperties': {'rowCount': 1000, 'columnCount': 20}
+                                }
+                            }
+                        }]
+                        safe_api_call(service.spreadsheets().batchUpdate(spreadsheetId=SHEET_ID, body={'requests': requests}))
+                        # Initialize headers
+                        default_headers = ['Name', 'Date', 'Time Range', 'Status', 'Hours']
+                        safe_api_call(
+                            service.spreadsheets().values().update(
+                                spreadsheetId=SHEET_ID,
+                                range=f'{company_id}!A1:E1',
+                                valueInputOption='RAW',
+                                body={'values': [default_headers]}
+                            )
+                        )
+                    except HttpError as e:
+                        logger.error(f"Error creating sheet {company_id}: {str(e)}")
+                        return jsonify({'error': f'Failed to create company sheet: {str(e)}'}), 500
+
+                # Update company-specific sheet
+                try:
+                    headers = safe_api_call(
+                        service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:1')
+                    ).get('values', [[]])[0] or ['Name']
+                    all_data = safe_api_call(
+                        service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A2:B')
+                    ).get('values', [])
+                    all_data.append([name])
                     safe_api_call(
                         service.spreadsheets().values().update(
                             spreadsheetId=SHEET_ID,
-                            range=f'{company_id}!A2',
+                            range=f'{company_id}!A1',
                             valueInputOption='RAW',
-                            body={'values': all_data}
+                            body={'values': [headers]}
                         )
                     )
+                    if all_data:
+                        safe_api_call(
+                            service.spreadsheets().values().update(
+                                spreadsheetId=SHEET_ID,
+                                range=f'{company_id}!A2',
+                                valueInputOption='RAW',
+                                body={'values': all_data}
+                            )
+                        )
+                except HttpError as e:
+                    logger.warning(f"Non-critical error updating company sheet {company_id}: {str(e)}")
+                    # Continue despite error, as user is already registered
+                    pass
+
                 return jsonify({'success': f'User {name} registered successfully'}), 200
             else:
                 return jsonify({'error': 'No valid faces detected.'}), 400
@@ -1864,6 +2026,7 @@ def add_user():
             return jsonify({'error': f'Error: {str(e)}'}), 500
 
     return render_template('add_user.html', error=None)
+
 
 @app.route('/delete_user', methods=['GET'])
 def delete_user():
@@ -2028,7 +2191,7 @@ def user_panel():
 
                         if not today_records:
                             noon = datetime.strptime(f"{today} 12:00:00", '%d/%m/%Y %H:%M:%S')
-                            if now > noon:
+                            if now < noon:
                                 action = "Check-in not allowed after 12:00 PM."
                             else:
                                 success, expected_checkout, day_status = log_attendance(company_id, name, 'checkin')

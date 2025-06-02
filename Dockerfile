@@ -117,6 +117,5 @@ COPY . .
 EXPOSE 8000
 
 # Start your app
-# CMD gunicorn 'app:app' --bind=0.0.0.0:8000
+CMD gunicorn 'app:app' --bind=0.0.0.0:8000 --timeout 120
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "120", "--workers", "2", "--worker-class", "sync", "--max-requests", "1000", "--max-requests-jitter", "100", "--preload", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "app:app"]

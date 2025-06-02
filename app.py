@@ -384,119 +384,39 @@ def save_encodings(company_id, data):
         pickle.dump(data, f)
     logger.debug(f"Saved encodings for {company_id}: {len(data)} users")
 
-# def read_attendance_from_sheet(company_id):
-#     try:
-#         sheet_data = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:Z'))
-#         sheet_values = sheet_data.get('values', [])
-#         if not sheet_values or sheet_values[0] == ['Name']:
-#             return []
-#         headers = sheet_values[0]
-#         attendance = []
-#         for row in sheet_values[1:]:
-#             name = row[0]
-#             for i in range(1, len(headers), 4):
-#                 if i + 3 >= len(headers):
-#                     break
-#                 date = headers[i].replace(' Attendance', '')
-#                 time_range = row[i] if i < len(row) else ''
-#                 expected_checkout = row[i + 1] if i + 1 < len(row) else ''
-#                 hours = row[i + 2] if i + 2 < len(row) else ''
-#                 day_status = row[i + 3] if i + 3 < len(row) else ''
-#                 if time_range:
-#                     in_time, out_time = parse_time_range(time_range)
-#                     status = 'Present' if in_time else 'Absent'
-#                     attendance.append([name, date, in_time, out_time, status, expected_checkout, hours, day_status])
-#         return attendance
-#     except Exception as e:
-#         logger.error(f"Error in read_attendance_from_sheet: {e}")
-#         return []
-
-
 def read_attendance_from_sheet(company_id):
     try:
         sheet_data = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:Z'))
         sheet_values = sheet_data.get('values', [])
-        
-        # Log the type of sheet_values to track issues with isinstance()
-        logger.debug(f"Fetched sheet data for {company_id}: {sheet_values}")
-        logger.debug(f"Type of sheet_values: {type(sheet_values)}")
-        
-        # Check if sheet_values is a list and contains data
-        if not isinstance(sheet_values, list) or len(sheet_values) == 0:
-            logger.error(f"Invalid or empty sheet data for {company_id}")
+        if not sheet_values or sheet_values[0] == ['Name']:
             return []
-        
-        # Check if the first row contains the expected header 'Name'
-        if sheet_values[0] == ['Name']:
-            logger.info(f"Empty attendance sheet for company {company_id}")
-            return []
-
         headers = sheet_values[0]
         attendance = []
-
-        # Process each row after the header
         for row in sheet_values[1:]:
-            # Log the type of each row
-            logger.debug(f"Processing row for {company_id}: {row}")
-            logger.debug(f"Type of row: {type(row)}")
-            
-            # Ensure row is a list with at least one entry (Name)
-            if not isinstance(row, list) or len(row) < 1:
-                logger.error(f"Invalid row format for {company_id}: {row}")
-                continue
-            
             name = row[0]
             for i in range(1, len(headers), 4):
                 if i + 3 >= len(headers):
                     break
-                
                 date = headers[i].replace(' Attendance', '')
                 time_range = row[i] if i < len(row) else ''
                 expected_checkout = row[i + 1] if i + 1 < len(row) else ''
                 hours = row[i + 2] if i + 2 < len(row) else ''
                 day_status = row[i + 3] if i + 3 < len(row) else ''
-                
-                # Check for valid time_range before parsing it
                 if time_range:
                     in_time, out_time = parse_time_range(time_range)
                     status = 'Present' if in_time else 'Absent'
                     attendance.append([name, date, in_time, out_time, status, expected_checkout, hours, day_status])
-        
-        logger.debug(f"Processed attendance data for {company_id}: {attendance}")
         return attendance
-    
     except Exception as e:
-        # Log the exact error
-        logger.error(f"Error in read_attendance_from_sheet for company {company_id}: {e}")
+        logger.error(f"Error in read_attendance_from_sheet: {e}")
         return []
 
-
-# def parse_time_range(time_range):
+def parse_time_range(time_range):
     if '-' in time_range:
         in_time, out_time = time_range.split(' - ')
         return in_time, out_time
     return time_range, ''
 
-
-def parse_time_range(time_range):
-    """
-    Parse time range string to extract in_time and out_time.
-    
-    Args:
-        time_range (str): Time range in format like "09:00-17:00"
-    
-    Returns:
-        tuple: (in_time, out_time) or (None, None) if parsing fails
-    """
-    try:
-        if '-' in time_range:
-            parts = time_range.split('-')
-            if len(parts) == 2:
-                return parts[0].strip(), parts[1].strip()
-        return time_range.strip(), None
-    except Exception as e:
-        logging.warning(f"Error parsing time range '{time_range}': {e}")
-        return None, None
 def calculate_hours(in_time, out_time):
     if not in_time or not out_time:
         return ''
@@ -807,94 +727,33 @@ def edit_company(company_id):
     return render_template('edit_company.html', company_id=company_id, company=company_row)
 
 
-# @app.route('/combined_dashboard')
-# def combined_dashboard():
-#     if 'username' not in session or session.get('role') != 'super_admin':
-#         return redirect(url_for('login'))
-
-#     # Fetch companies
-#     result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A2:D'))
-#     companies_raw = result.get('values', [])
-    
-#     # Fetch users
-#     user_result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Users!A2:B'))
-#     users = {company[0]: [] for company in companies_raw}
-#     for row in user_result.get('values', []):
-#         if row and len(row) >= 2:
-#             users[row[0]].append(row[1])
-
-#     # Calculate attendance stats
-#         # Calculate attendance stats
-#     today = datetime.now().strftime('%d/%m/%Y')
-#     companies_with_stats = []
-#     for company in companies_raw:
-#         company_id = company[0]
-#         total_users = len(users.get(company_id, []))
-#         attendance = read_attendance_from_sheet(company_id)
-#         todays_attendance = [r for r in attendance if r[1] == today]
-#         present_today = len([r for r in todays_attendance if r[4] == 'Present'])
-#         absent_today = total_users - present_today
-#         companies_with_stats.append({
-#             0: company[0],  # Company ID
-#             1: company[1],  # Company Name
-#             'total_users': total_users,
-#             'present_today': present_today,
-#             'absent_today': absent_today
-#         })
-
-#     # Create a version of companies_with_stats with string keys for JSON serialization
-#     company_stats_for_json = [
-#         {
-#             '0': company[0],
-#             '1': company[1],
-#             'total_users': company['total_users'],
-#             'present_today': company['present_today'],
-#             'absent_today': company['absent_today']
-#         }
-#         for company in companies_with_stats
-#     ]
-
-#     return render_template('combined_dashboard.html', companies=companies_with_stats, companyStats=company_stats_for_json)
-
 @app.route('/combined_dashboard')
 def combined_dashboard():
     if 'username' not in session or session.get('role') != 'super_admin':
-        logging.warning("Invalid session or user is not super_admin")
         return redirect(url_for('login'))
 
     # Fetch companies
     result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A2:D'))
-    if result is None:
-        logging.error("Failed to fetch companies data.")
-        return render_template('error.html', message="Failed to load company data.")
     companies_raw = result.get('values', [])
-
+    
     # Fetch users
     user_result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Users!A2:B'))
-    if user_result is None:
-        logging.error("Failed to fetch users data.")
-        return render_template('error.html', message="Failed to load users data.")
     users = {company[0]: [] for company in companies_raw}
     for row in user_result.get('values', []):
         if row and len(row) >= 2:
             users[row[0]].append(row[1])
 
     # Calculate attendance stats
+        # Calculate attendance stats
     today = datetime.now().strftime('%d/%m/%Y')
     companies_with_stats = []
     for company in companies_raw:
         company_id = company[0]
         total_users = len(users.get(company_id, []))
-        
         attendance = read_attendance_from_sheet(company_id)
-        if not attendance:
-            logging.debug(f"No attendance data for company {company_id}. Skipping.")
-            continue  # Skip company if no attendance data
-        
         todays_attendance = [r for r in attendance if r[1] == today]
         present_today = len([r for r in todays_attendance if r[4] == 'Present'])
         absent_today = total_users - present_today
-
         companies_with_stats.append({
             0: company[0],  # Company ID
             1: company[1],  # Company Name
@@ -916,6 +775,7 @@ def combined_dashboard():
     ]
 
     return render_template('combined_dashboard.html', companies=companies_with_stats, companyStats=company_stats_for_json)
+
 
 
 # @app.route('/company_dashboard/<company_id>')

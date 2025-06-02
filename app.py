@@ -727,33 +727,94 @@ def edit_company(company_id):
     return render_template('edit_company.html', company_id=company_id, company=company_row)
 
 
+# @app.route('/combined_dashboard')
+# def combined_dashboard():
+#     if 'username' not in session or session.get('role') != 'super_admin':
+#         return redirect(url_for('login'))
+
+#     # Fetch companies
+#     result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A2:D'))
+#     companies_raw = result.get('values', [])
+    
+#     # Fetch users
+#     user_result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Users!A2:B'))
+#     users = {company[0]: [] for company in companies_raw}
+#     for row in user_result.get('values', []):
+#         if row and len(row) >= 2:
+#             users[row[0]].append(row[1])
+
+#     # Calculate attendance stats
+#         # Calculate attendance stats
+#     today = datetime.now().strftime('%d/%m/%Y')
+#     companies_with_stats = []
+#     for company in companies_raw:
+#         company_id = company[0]
+#         total_users = len(users.get(company_id, []))
+#         attendance = read_attendance_from_sheet(company_id)
+#         todays_attendance = [r for r in attendance if r[1] == today]
+#         present_today = len([r for r in todays_attendance if r[4] == 'Present'])
+#         absent_today = total_users - present_today
+#         companies_with_stats.append({
+#             0: company[0],  # Company ID
+#             1: company[1],  # Company Name
+#             'total_users': total_users,
+#             'present_today': present_today,
+#             'absent_today': absent_today
+#         })
+
+#     # Create a version of companies_with_stats with string keys for JSON serialization
+#     company_stats_for_json = [
+#         {
+#             '0': company[0],
+#             '1': company[1],
+#             'total_users': company['total_users'],
+#             'present_today': company['present_today'],
+#             'absent_today': company['absent_today']
+#         }
+#         for company in companies_with_stats
+#     ]
+
+#     return render_template('combined_dashboard.html', companies=companies_with_stats, companyStats=company_stats_for_json)
+
 @app.route('/combined_dashboard')
 def combined_dashboard():
     if 'username' not in session or session.get('role') != 'super_admin':
+        logging.warning("Invalid session or user is not super_admin")
         return redirect(url_for('login'))
 
     # Fetch companies
     result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A2:D'))
+    if result is None:
+        logging.error("Failed to fetch companies data.")
+        return render_template('error.html', message="Failed to load company data.")
     companies_raw = result.get('values', [])
-    
+
     # Fetch users
     user_result = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Users!A2:B'))
+    if user_result is None:
+        logging.error("Failed to fetch users data.")
+        return render_template('error.html', message="Failed to load users data.")
     users = {company[0]: [] for company in companies_raw}
     for row in user_result.get('values', []):
         if row and len(row) >= 2:
             users[row[0]].append(row[1])
 
     # Calculate attendance stats
-        # Calculate attendance stats
     today = datetime.now().strftime('%d/%m/%Y')
     companies_with_stats = []
     for company in companies_raw:
         company_id = company[0]
         total_users = len(users.get(company_id, []))
+        
         attendance = read_attendance_from_sheet(company_id)
+        if not attendance:
+            logging.debug(f"No attendance data for company {company_id}. Skipping.")
+            continue  # Skip company if no attendance data
+        
         todays_attendance = [r for r in attendance if r[1] == today]
         present_today = len([r for r in todays_attendance if r[4] == 'Present'])
         absent_today = total_users - present_today
+
         companies_with_stats.append({
             0: company[0],  # Company ID
             1: company[1],  # Company Name
@@ -775,6 +836,7 @@ def combined_dashboard():
     ]
 
     return render_template('combined_dashboard.html', companies=companies_with_stats, companyStats=company_stats_for_json)
+
 
 # @app.route('/company_dashboard/<company_id>')
 # def company_dashboard(company_id):
@@ -1741,7 +1803,11 @@ def admin_panel():
         if 'force_checkout' in request.form:
             name = request.form['force_checkout']
             now = datetime.now()
-            time_str = now.strftime('%H:%M:%S')
+
+            india_offset = timedelta(hours=5, minutes=30)  # 5:30 hours for IST
+            india_time = now + india_offset
+
+            time_str = india_time.strftime('%H:%M:%S')
             attendance = read_attendance_from_sheet(company_id)
             for record in attendance:
                 if record[0] == name and record[1] == today and record[2] and not record[3]:

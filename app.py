@@ -417,8 +417,9 @@ def read_attendance_from_sheet(company_id):
         sheet_data = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:Z'))
         sheet_values = sheet_data.get('values', [])
         
-        # Log sheet values to track the data
+        # Log the type of sheet_values to track issues with isinstance()
         logger.debug(f"Fetched sheet data for {company_id}: {sheet_values}")
+        logger.debug(f"Type of sheet_values: {type(sheet_values)}")
         
         # Check if sheet_values is a list and contains data
         if not isinstance(sheet_values, list) or len(sheet_values) == 0:
@@ -435,6 +436,10 @@ def read_attendance_from_sheet(company_id):
 
         # Process each row after the header
         for row in sheet_values[1:]:
+            # Log the type of each row
+            logger.debug(f"Processing row for {company_id}: {row}")
+            logger.debug(f"Type of row: {type(row)}")
+            
             # Ensure row is a list with at least one entry (Name)
             if not isinstance(row, list) or len(row) < 1:
                 logger.error(f"Invalid row format for {company_id}: {row}")
@@ -464,7 +469,6 @@ def read_attendance_from_sheet(company_id):
         # Log the exact error
         logger.error(f"Error in read_attendance_from_sheet for company {company_id}: {e}")
         return []
-
 
 
 def parse_time_range(time_range):

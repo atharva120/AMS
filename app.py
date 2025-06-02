@@ -471,12 +471,32 @@ def read_attendance_from_sheet(company_id):
         return []
 
 
-def parse_time_range(time_range):
+# def parse_time_range(time_range):
     if '-' in time_range:
         in_time, out_time = time_range.split(' - ')
         return in_time, out_time
     return time_range, ''
 
+
+def parse_time_range(time_range):
+    """
+    Parse time range string to extract in_time and out_time.
+    
+    Args:
+        time_range (str): Time range in format like "09:00-17:00"
+    
+    Returns:
+        tuple: (in_time, out_time) or (None, None) if parsing fails
+    """
+    try:
+        if '-' in time_range:
+            parts = time_range.split('-')
+            if len(parts) == 2:
+                return parts[0].strip(), parts[1].strip()
+        return time_range.strip(), None
+    except Exception as e:
+        logging.warning(f"Error parsing time range '{time_range}': {e}")
+        return None, None
 def calculate_hours(in_time, out_time):
     if not in_time or not out_time:
         return ''

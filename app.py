@@ -384,32 +384,88 @@ def save_encodings(company_id, data):
         pickle.dump(data, f)
     logger.debug(f"Saved encodings for {company_id}: {len(data)} users")
 
+# def read_attendance_from_sheet(company_id):
+#     try:
+#         sheet_data = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:Z'))
+#         sheet_values = sheet_data.get('values', [])
+#         if not sheet_values or sheet_values[0] == ['Name']:
+#             return []
+#         headers = sheet_values[0]
+#         attendance = []
+#         for row in sheet_values[1:]:
+#             name = row[0]
+#             for i in range(1, len(headers), 4):
+#                 if i + 3 >= len(headers):
+#                     break
+#                 date = headers[i].replace(' Attendance', '')
+#                 time_range = row[i] if i < len(row) else ''
+#                 expected_checkout = row[i + 1] if i + 1 < len(row) else ''
+#                 hours = row[i + 2] if i + 2 < len(row) else ''
+#                 day_status = row[i + 3] if i + 3 < len(row) else ''
+#                 if time_range:
+#                     in_time, out_time = parse_time_range(time_range)
+#                     status = 'Present' if in_time else 'Absent'
+#                     attendance.append([name, date, in_time, out_time, status, expected_checkout, hours, day_status])
+#         return attendance
+#     except Exception as e:
+#         logger.error(f"Error in read_attendance_from_sheet: {e}")
+#         return []
+
+
 def read_attendance_from_sheet(company_id):
     try:
         sheet_data = safe_api_call(service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=f'{company_id}!A1:Z'))
         sheet_values = sheet_data.get('values', [])
-        if not sheet_values or sheet_values[0] == ['Name']:
+        
+        # Log sheet values to track the data
+        logger.debug(f"Fetched sheet data for {company_id}: {sheet_values}")
+        
+        # Check if sheet_values is a list and contains data
+        if not isinstance(sheet_values, list) or len(sheet_values) == 0:
+            logger.error(f"Invalid or empty sheet data for {company_id}")
             return []
+        
+        # Check if the first row contains the expected header 'Name'
+        if sheet_values[0] == ['Name']:
+            logger.info(f"Empty attendance sheet for company {company_id}")
+            return []
+
         headers = sheet_values[0]
         attendance = []
+
+        # Process each row after the header
         for row in sheet_values[1:]:
+            # Ensure row is a list with at least one entry (Name)
+            if not isinstance(row, list) or len(row) < 1:
+                logger.error(f"Invalid row format for {company_id}: {row}")
+                continue
+            
             name = row[0]
             for i in range(1, len(headers), 4):
                 if i + 3 >= len(headers):
                     break
+                
                 date = headers[i].replace(' Attendance', '')
                 time_range = row[i] if i < len(row) else ''
                 expected_checkout = row[i + 1] if i + 1 < len(row) else ''
                 hours = row[i + 2] if i + 2 < len(row) else ''
                 day_status = row[i + 3] if i + 3 < len(row) else ''
+                
+                # Check for valid time_range before parsing it
                 if time_range:
                     in_time, out_time = parse_time_range(time_range)
                     status = 'Present' if in_time else 'Absent'
                     attendance.append([name, date, in_time, out_time, status, expected_checkout, hours, day_status])
+        
+        logger.debug(f"Processed attendance data for {company_id}: {attendance}")
         return attendance
+    
     except Exception as e:
-        logger.error(f"Error in read_attendance_from_sheet: {e}")
+        # Log the exact error
+        logger.error(f"Error in read_attendance_from_sheet for company {company_id}: {e}")
         return []
+
+
 
 def parse_time_range(time_range):
     if '-' in time_range:

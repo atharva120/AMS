@@ -508,7 +508,7 @@ def get_checkin_image_base64(company_id, name, date_str):
     return None
 
 def log_attendance(company_id, name, action):
-    now = datetime.now()
+    now = datetime.now() + india_offset
     date_str = now.strftime('%d/%m/%Y')
     time_str = now.strftime('%H:%M:%S')
 
@@ -517,11 +517,11 @@ def log_attendance(company_id, name, action):
 
     if not today_records:
         if action == 'checkin':
-            checkin_time = datetime.strptime(time_str, '%H:%M:%S').time()
-            checkin_dt = datetime.combine(datetime.today(), checkin_time)
-            time_10_00 = datetime.combine(datetime.today(), time(10, 0))
-            time_10_30 = datetime.combine(datetime.today(), time(10, 30))
-            time_11_00 = datetime.combine(datetime.today(), time(11, 0))
+            checkin_time = datetime.strptime(time_str, '%H:%M:%S').time() 
+            checkin_dt = datetime.combine(datetime.today(), checkin_time) + india_offset
+            time_10_00 = datetime.combine(datetime.today(), time(10, 0)) + india_offset
+            time_10_30 = datetime.combine(datetime.today(), time(10, 30)) + india_offset
+            time_11_00 = datetime.combine(datetime.today(), time(11, 0)) + india_offset
             day_status = 'Full Day'
             expected_checkout = '18:30:00'
 
@@ -544,7 +544,7 @@ def log_attendance(company_id, name, action):
         day_status = last_record[7] if len(last_record) > 7 else 'Full Day'
 
         if action == 'checkout' and checkin_time and not checkout_time:
-            time_since_checkin = now - datetime.combine(date.today(), checkin_time.time())
+            time_since_checkin = now - datetime.combine(date.today(), checkin_time.time()) + india_offset
             expected_checkout = datetime.strptime(last_record[5], '%H:%M:%S') if last_record[5] else datetime.strptime('18:30:00', '%H:%M:%S')
             if time_since_checkin.total_seconds() < 0:
                 time_since_checkin += timedelta(days=1)
@@ -559,10 +559,10 @@ def log_attendance(company_id, name, action):
             if not checkin_time:
                 last_record[2] = time_str
                 last_record[4] = 'Present'
-                checkin_dt = datetime.strptime(time_str, '%H:%M:%S')
-                time_10_00 = datetime.combine(datetime.today(), time(10, 0))
-                time_10_30 = datetime.combine(datetime.today(), time(10, 30))
-                time_11_00 = datetime.combine(datetime.today(), time(11, 0))
+                checkin_dt = datetime.strptime(time_str, '%H:%M:%S') + india_offset
+                time_10_00 = datetime.combine(datetime.today(), time(10, 0)) + india_offset
+                time_10_30 = datetime.combine(datetime.today(), time(10, 30)) + india_offset
+                time_11_00 = datetime.combine(datetime.today(), time(11, 0)) + india_offset
                 day_status = 'Full Day'
                 expected_checkout = '18:30:00'
 
@@ -1865,6 +1865,7 @@ def admin_panel():
 
 #     return render_template('add_user.html', error=None)
 
+india_offset = timedelta(hours=5, minutes=30)
 
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
@@ -2091,6 +2092,378 @@ def delete_user():
     flash(f"User {name} not found.", "error")
     return redirect(url_for('admin_panel'))
 
+# @app.route('/user_panel', methods=['GET', 'POST'])
+# def user_panel():
+#     if session.get('role') == 'super_admin':
+#         return redirect(url_for('super_admin'))
+
+#     company_id = session.get('company_id')
+#     known_faces = load_encodings(company_id)
+#     action = "Welcome, please start recognition"
+#     name = "Unknown"
+
+#     if request.method == 'POST':
+#         try:
+#             # Check if the request has the correct Content-Type
+#             if not request.is_json:
+#                 logger.error("Invalid request: JSON data required")
+#                 return jsonify({'action': 'Invalid request. Content-Type must be application/json.', 'name': name}), 400
+
+#             # Parse JSON data
+#             data = request.get_json(silent=True)
+#             if data is None:
+#                 logger.error("Invalid JSON format in request")
+#                 return jsonify({'action': 'Invalid JSON format. Please ensure the request body is valid JSON.', 'name': name}), 400
+
+#             # Check for the 'image' field
+#             if 'image' not in data:
+#                 logger.error("No image provided in request")
+#                 return jsonify({'action': 'No image provided. Please capture an image.', 'name': name}), 400
+
+#             image_data = data['image']
+#             if not isinstance(image_data, str):
+#                 logger.error("Image data is not a string")
+#                 return jsonify({'action': 'Image data must be a string.', 'name': name}), 400
+
+#             if not image_data:
+#                 logger.error("Image data is empty")
+#                 return jsonify({'action': 'Image data is empty. Please capture a valid image.', 'name': name}), 400
+
+#             logger.debug("Received base64 image data")
+
+#             # Step 1: Decode base64 image
+#             try:
+#                 # Remove the data URI prefix if present (e.g., "data:image/jpeg;base64,")
+#                 if ',' in image_data:
+#                     image_data = image_data.split(',')[1]
+#                 # Ensure proper padding for base64 decoding
+#                 image_data += '=' * (-len(image_data) % 4)
+#                 image_bytes = base64.b64decode(image_data, validate=True)
+#                 logger.debug("Base64 decoded successfully")
+#             except (base64.binascii.Error, ValueError) as e:
+#                 logger.error(f"Base64 decoding error: {str(e)}")
+#                 return jsonify({'action': f'Invalid base64 image data: {str(e)}', 'name': name}), 400
+
+#             # Step 2: Convert image to RGB format for face_recognition
+#             try:
+#                 image = Image.open(io.BytesIO(image_bytes))
+#                 if image.mode != 'RGB':
+#                     image = image.convert('RGB')
+#                 frame = np.array(image)
+#                 rgb_frame = frame
+#                 logger.debug(f"Image converted to RGB, shape: {frame.shape}")
+#             except Exception as e:
+#                 logger.error(f"Error opening or converting image: {str(e)}")
+#                 return jsonify({'action': 'Error processing image. Ensure the image is a valid JPEG.', 'name': name}), 400
+
+#             # Step 3: Detect faces in the image
+#             try:
+#                 face_locations = face_recognition.face_locations(rgb_frame, model="hog")
+#                 if not face_locations:
+#                     logger.warning("No faces detected in image")
+#                     return jsonify({'action': 'No face detected. Ensure a face is clearly visible in the frame.', 'name': name}), 400
+#                 logger.debug(f"Detected {len(face_locations)} face(s)")
+#             except Exception as e:
+#                 logger.error(f"Error detecting faces: {str(e)}")
+#                 return jsonify({'action': 'Error detecting faces. Ensure the image quality is good and try again.', 'name': name}), 500
+
+#             # Step 4: Generate face encodings
+#             try:
+#                 face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+#                 if not face_encodings:
+#                     logger.warning("No face encodings generated")
+#                     return jsonify({'action': 'Face encoding failed. Ensure the face is clear and well-lit.', 'name': name}), 400
+#                 logger.debug(f"Generated {len(face_encodings)} face encoding(s)")
+#             except Exception as e:
+#                 logger.error(f"Error generating face encodings: {str(e)}")
+#                 return jsonify({'action': 'Error encoding face. Ensure the image quality is good and try again.', 'name': name}), 500
+
+#             # Step 5: Match the face with known faces
+#             for face_encoding in face_encodings:
+#                 try:
+#                     match_result = find_best_match(face_encoding, known_faces)
+#                     if match_result:
+#                         name, best_distance = match_result
+#                         logger.info(f"Recognized: {name} with distance {best_distance}")
+#                         attendance = read_attendance_from_sheet(company_id)
+#                         today = datetime.now().strftime('%d/%m/%Y')
+#                         today_records = [r for r in attendance if r[0] == name and r[1] == today]
+#                         now = datetime.now()
+
+#                         if not today_records:
+#                             noon = datetime.strptime(f"{today} 12:00:00", '%d/%m/%Y %H:%M:%S')
+#                             if now > noon:
+#                                 action = "Check-in not allowed after 12:00 PM."
+#                             else:
+#                                 success, expected_checkout, day_status = log_attendance(company_id, name, 'checkin')
+#                                 if success:
+#                                     action = f"Checked in successfully. Expected check-out: {expected_checkout}. Day Status: {day_status}"
+#                                     image_path = os.path.join(TEMP_CHECKIN_IMAGES_DIR, f"{company_id}_{name}_{today.replace('/', '-')}.jpg")
+#                                     try:
+#                                         image.save(image_path)
+#                                         logger.info(f"Saved check-in image: {name}")
+#                                     except Exception as e:
+#                                         logger.error(f"Error saving check-in image: {str(e)}")
+#                                         action += " (Warning: Failed to save check-in image)"
+#                                 else:
+#                                     action = "Error processing check-in."
+#                         else:
+#                             last_record = today_records[-1]
+#                             checkin_time = datetime.strptime(last_record[2], '%H:%M:%S') if last_record[2] else None
+#                             checkout_time = datetime.strptime(last_record[3], '%H:%M:%S') if last_record[3] else None
+
+#                             if checkout_time:
+#                                 action = 'Attendance completed for today'
+#                             elif checkin_time and not checkout_time:
+#                                 time_since_checkin = now - datetime.combine(date.today(), checkin_time.time())
+#                                 expected_checkout = datetime.strptime(last_record[5], '%H:%M:%S') if last_record[5] else datetime.strptime('18:30:00', '%H:%M:%S')
+#                                 if time_since_checkin >= timedelta(hours=7):
+#                                     success, hours, day_status = log_attendance(company_id, name, 'checkout')
+#                                     if success:
+#                                         action = f"Checked out successfully. Hours: {hours}. Day Status: {day_status}"
+#                                         image_path = os.path.join(TEMP_CHECKIN_IMAGES_DIR, f"{company_id}_{name}_{hours}_{today.replace('/', '-')}.jpg")
+#                                         if os.path.exists(image_path):
+#                                             try:
+#                                                 os.remove(image_path)
+#                                                 logger.info(f"Deleted check-in image: {name}")
+#                                             except Exception as e:
+#                                                 logger.error(f"Error deleting check-in image: {str(e)}")
+#                                     else:
+#                                         action = "Error processing check-out."
+#                                 else:
+#                                     time_to_checkout = datetime.combine(date.today(), expected_checkout.time()) - now
+#                                     if time_to_checkout.total_seconds() > 0:
+#                                         hours, remainder = divmod(time_to_checkout.total_seconds(), 3600)
+#                                         minutes, _ = divmod(remainder, 60)
+#                                         action = f"Cannot check out yet, wait until {last_record[5]} ({int(hours)}h {int(minutes)}m)"
+#                                     else:
+#                                         action = f"Cannot check out yet, minimum 7 hours required."
+#                             else:
+#                                 action = 'Invalid attendance state'
+#                     else:
+#                         name = "Unknown"
+#                         action = "Unknown user."
+#                 except Exception as e:
+#                     logger.error(f"Error matching face: {str(e)}")
+#                     return jsonify({'action': 'Error matching face. Ensure the face matches a registered user.', 'name': name}), 500
+
+#             return jsonify({'action': action, 'name': name})
+
+#         except Exception as e:
+#             logger.error(f"Unexpected error in user_panel: {str(e)}")
+#             return jsonify({'action': f'Unexpected server error: {str(e)}', 'name': name}), 500
+
+#     return render_template('user_panel.html', name=name, action=action, known_faces=known_faces)
+
+
+# @app.route('/user_panel', methods=['GET', 'POST'])
+# def user_panel():
+#     if session.get('role') == 'super_admin':
+#         return redirect(url_for('super_admin'))
+
+#     company_id = session.get('company_id')
+#     known_faces = load_encodings(company_id)
+#     action = "Welcome, please start recognition"
+#     name = "Unknown"
+
+#     if request.method == 'POST':
+#         try:
+#             # Check if the request has the correct Content-Type
+#             if not request.is_json:
+#                 logger.error("Invalid request: JSON data required")
+#                 return jsonify({'action': 'Invalid request. Content-Type must be application/json.', 'name': name}), 400
+
+#             # Parse JSON data
+#             data = request.get_json(silent=True)
+#             if data is None:
+#                 logger.error("Invalid JSON format in request")
+#                 return jsonify({'action': 'Invalid JSON format. Please ensure the request body is valid JSON.', 'name': name}), 400
+
+#             # Check for the 'image' field
+#             if 'image' not in data:
+#                 logger.error("No image provided in request")
+#                 return jsonify({'action': 'No image provided. Please capture an image.', 'name': name}), 400
+
+#             image_data = data['image']
+#             if not isinstance(image_data, str):
+#                 logger.error("Image data is not a string")
+#                 return jsonify({'action': 'Image data must be a string.', 'name': name}), 400
+
+#             if not image_data:
+#                 logger.error("Image data is empty")
+#                 return jsonify({'action': 'Image data is empty. Please capture a valid image.', 'name': name}), 400
+
+#             logger.debug("Received base64 image data")
+
+#             # Step 1: Decode base64 image
+#             try:
+#                 if ',' in image_data:
+#                     image_data = image_data.split(',')[1]
+#                 image_data += '=' * (-len(image_data) % 4)
+#                 image_bytes = base64.b64decode(image_data, validate=True)
+#                 logger.debug("Base64 decoded successfully")
+#             except (base64.binascii.Error, ValueError) as e:
+#                 logger.error(f"Base64 decoding error: {str(e)}")
+#                 return jsonify({'action': f'Invalid base64 image data: {str(e)}', 'name': name}), 400
+
+#             # Step 2: Convert image to RGB format for face_recognition
+#             try:
+#                 image = Image.open(io.BytesIO(image_bytes))
+#                 if image.mode != 'RGB':
+#                     image = image.convert('RGB')
+#                 frame = np.array(image)
+#                 rgb_frame = frame
+#                 logger.debug(f"Image converted to RGB, shape: {frame.shape}")
+#             except Exception as e:
+#                 logger.error(f"Error opening or converting image: {str(e)}")
+#                 return jsonify({'action': 'Error processing image. Ensure the image is a valid JPEG.', 'name': name}), 400
+
+#             # Step 3: Detect faces in the image
+#             try:
+#                 face_locations = face_recognition.face_locations(rgb_frame, model="hog")
+#                 if not face_locations:
+#                     logger.warning("No faces detected in image")
+#                     return jsonify({'action': 'No face detected. Ensure a face is clearly visible in the frame.', 'name': name}), 400
+#                 logger.debug(f"Detected {len(face_locations)} face(s)")
+#             except Exception as e:
+#                 logger.error(f"Error detecting faces: {str(e)}")
+#                 return jsonify({'action': 'Error detecting faces. Ensure the image quality is good and try again.', 'name': name}), 500
+
+#             # Step 4: Generate face encodings
+#             try:
+#                 face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+#                 if not face_encodings:
+#                     logger.warning("No face encodings generated")
+#                     return jsonify({'action': 'Face encoding failed. Ensure the face is clear and well-lit.', 'name': name}), 400
+#                 logger.debug(f"Generated {len(face_encodings)} face encoding(s)")
+#             except Exception as e:
+#                 logger.error(f"Error generating face encodings: {str(e)}")
+#                 return jsonify({'action': 'Error encoding face. Ensure the image quality is good and try again.', 'name': name}), 500
+
+#             # Step 5: Match the face with known faces
+#             for face_encoding in face_encodings:
+#                 try:
+#                     match_result = find_best_match(face_encoding, known_faces)
+#                     if match_result:
+#                         name, best_distance = match_result
+#                         logger.info(f"Recognized: {name} with distance {best_distance}")
+#                         attendance = read_attendance_from_sheet(company_id)
+#                         # Use 5:30 delta time instead of timezone
+#                         india_offset = timedelta(hours=5, minutes=30)
+#                         current_time = datetime.now() + india_offset
+#                         today = current_time.strftime('%d/%m/%Y')
+#                         time_str = current_time.strftime('%H:%M:%S')
+#                         today_records = [r for r in attendance if r[0] == name and r[1] == today]
+#                         now = current_time
+                        
+#                         print(f"[TIME] User panel accessed at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                         print(f"[DEBUG] Processing face recognition for {name} on {today} at {time_str}")
+
+#                         if not today_records:
+#                             # Get company-specific check-in time
+#                             check_in_time, check_out_time, required_hours = get_company_times(company_id)
+#                             if check_in_time is None:
+#                                 logger.error("Company check-in time not set.")
+#                                 return jsonify({'action': 'Error: Company check-in time not configured.', 'name': name}), 500
+
+#                             # Calculate the check-in cutoff (check-in time + 2 hours)
+#                             check_in_dt = datetime.strptime(f"{today} {check_in_time}", '%d/%m/%Y %H:%M:%S')
+#                             check_in_cutoff = check_in_dt + timedelta(hours=2)
+#                             # Apply india_offset to both check_in_dt and check_in_cutoff for comparison
+#                             check_in_dt_with_offset = check_in_dt + india_offset
+#                             check_in_cutoff_with_offset = check_in_cutoff + india_offset
+
+#                             print(f"[TIME] Check-in window: {check_in_dt.strftime('%H:%M:%S')} to {check_in_cutoff.strftime('%H:%M:%S')} IST")
+#                             print(f"[DEBUG] Current time: {now.strftime('%H:%M:%S')}, Cutoff: {check_in_cutoff_with_offset.strftime('%H:%M:%S')}")
+
+#                             if now > check_in_cutoff_with_offset:
+#                                 check_in_time_str = check_in_dt.strftime('%H:%M:%S')
+#                                 check_in_cutoff_str = check_in_cutoff.strftime('%H:%M:%S')
+#                                 action = f"Check-in not allowed after {check_in_cutoff_str} (2 hours past check-in time {check_in_time_str})."
+#                                 print(f"[TIME] Check-in denied at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST - Too late")
+#                             else:
+#                                 print(f"[TIME] Processing check-in at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                                 success, expected_checkout, day_status = log_attendance(company_id, name, 'checkin')
+#                                 if success:
+#                                     action = f"Checked in successfully. Expected check-out: {expected_checkout}. Day Status: {day_status}"
+#                                     print(f"[TIME] Check-in successful at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                                     image_path = os.path.join(TEMP_CHECKIN_IMAGES_DIR, f"{company_id}_{name}_{today.replace('/', '-')}.jpg")
+#                                     try:
+#                                         logger.debug(f"Saving check-in image to {image_path}")
+#                                         image.save(image_path)
+#                                         logger.info(f"Saved check-in image: {name}")
+#                                         print(f"[TIME] Check-in image saved at: {current_time.strftime('%H:%M:%S')} IST")
+#                                     except Exception as e:
+#                                         logger.error(f"Error saving check-in image: {str(e)}")
+#                                         action += " (Warning: Failed to save check-in image)"
+#                                 else:
+#                                     action = day_status if day_status == 'Check-in not allowed after 2 hours past check-in time. Admin must mark attendance.' else "Error processing check-in."
+#                                     print(f"[TIME] Check-in failed at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                         else:
+#                             last_record = today_records[-1]
+#                             checkin_time = datetime.strptime(last_record[2], '%H:%M:%S') if last_record[2] else None
+#                             checkout_time = datetime.strptime(last_record[3], '%H:%M:%S') if last_record[3] else None
+
+#                             print(f"[DEBUG] Existing record found - Checkin: {last_record[2]}, Checkout: {last_record[3]}")
+
+#                             if checkout_time:
+#                                 action = 'Attendance completed for today'
+#                                 print(f"[TIME] Attendance already completed at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                             elif checkin_time and not checkout_time:
+#                                 # Use india_offset for time calculations
+#                                 time_since_checkin = now - (datetime.combine(date.today(), checkin_time.time()) + india_offset)
+#                                 expected_checkout = datetime.strptime(last_record[5], '%H:%M:%S') if last_record[5] else datetime.strptime('18:30:00', '%H:%M:%S')
+                                
+#                                 print(f"[DEBUG] Time since check-in: {time_since_checkin}, Required: 7 hours")
+#                                 print(f"[TIME] Processing checkout attempt at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+                                
+#                                 if time_since_checkin >= timedelta(hours=7):
+#                                     print(f"[TIME] Checkout allowed - processing at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                                     success, hours, day_status = log_attendance(company_id, name, 'checkout')
+#                                     if success:
+#                                         action = f"Checked out successfully. Hours: {hours}. Day Status: {day_status}"
+#                                         print(f"[TIME] Check-out successful at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                                         image_path = os.path.join(TEMP_CHECKIN_IMAGES_DIR, f"{company_id}_{name}_{hours}_{today.replace('/', '-')}.jpg")
+#                                         if os.path.exists(image_path):
+#                                             try:
+#                                                 os.remove(image_path)
+#                                                 logger.info(f"Deleted check-in image: {name}")
+#                                                 print(f"[TIME] Check-in image deleted at: {current_time.strftime('%H:%M:%S')} IST")
+#                                             except Exception as e:
+#                                                 logger.error(f"Error deleting check-in image: {str(e)}")
+#                                     else:
+#                                         action = "Error processing check-out."
+#                                         print(f"[TIME] Check-out failed at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                                 else:
+#                                     # Use india_offset for time calculations
+#                                     time_to_checkout = (datetime.combine(date.today(), expected_checkout.time()) + india_offset) - now
+#                                     if time_to_checkout.total_seconds() > 0:
+#                                         hours, remainder = divmod(time_to_checkout.total_seconds(), 3600)
+#                                         minutes, _ = divmod(remainder, 60)
+#                                         action = f"Cannot check out yet, wait until {last_record[5]} ({int(hours)}h {int(minutes)}m)"
+#                                         print(f"[TIME] Check-out denied at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST - Too early")
+#                                     else:
+#                                         action = f"Cannot check out yet, minimum 7 hours required."
+#                                         print(f"[TIME] Check-out denied at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST - Insufficient hours")
+#                             else:
+#                                 action = 'Invalid attendance state'
+#                                 print(f"[TIME] Invalid attendance state at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                     else:
+#                         name = "Unknown"
+#                         action = "Unknown user."
+#                         print(f"[TIME] Unknown user detected at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+#                 except Exception as e:
+#                     logger.error(f"Error matching face: {str(e)}")
+#                     return jsonify({'action': 'Error matching face. Ensure the face matches a registered user.', 'name': name}), 500
+
+#             return jsonify({'action': action, 'name': name})
+
+#         except Exception as e:
+#             logger.error(f"Unexpected error in user_panel: {str(e)}")
+#             return jsonify({'action': f'Unexpected server error: {str(e)}', 'name': name}), 500
+
+#     return render_template('user_panel.html', name=name, action=action, known_faces=known_faces)
+
 @app.route('/user_panel', methods=['GET', 'POST'])
 def user_panel():
     if session.get('role') == 'super_admin':
@@ -2100,6 +2473,9 @@ def user_panel():
     known_faces = load_encodings(company_id)
     action = "Welcome, please start recognition"
     name = "Unknown"
+
+    india_offset = timedelta(hours=5, minutes=30)
+    current_time = datetime.now() + india_offset
 
     if request.method == 'POST':
         try:
@@ -2132,10 +2508,8 @@ def user_panel():
 
             # Step 1: Decode base64 image
             try:
-                # Remove the data URI prefix if present (e.g., "data:image/jpeg;base64,")
                 if ',' in image_data:
                     image_data = image_data.split(',')[1]
-                # Ensure proper padding for base64 decoding
                 image_data += '=' * (-len(image_data) % 4)
                 image_bytes = base64.b64decode(image_data, validate=True)
                 logger.debug("Base64 decoded successfully")
@@ -2185,63 +2559,77 @@ def user_panel():
                         name, best_distance = match_result
                         logger.info(f"Recognized: {name} with distance {best_distance}")
                         attendance = read_attendance_from_sheet(company_id)
-                        today = datetime.now().strftime('%d/%m/%Y')
+
+                        # Use India Offset (5:30 hours)
+                        # india_offset = timedelta(hours=5, minutes=30)
+                        # current_time = datetime.now() + india_offset
+                        today = current_time.strftime('%d/%m/%Y')
+                        time_str = current_time.strftime('%H:%M:%S')
                         today_records = [r for r in attendance if r[0] == name and r[1] == today]
-                        now = datetime.now()
+                        now = current_time
+
+                        print(f"[TIME] User panel accessed at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+                        print(f"[DEBUG] Processing face recognition for {name} on {today} at {time_str}")
 
                         if not today_records:
-                            noon = datetime.strptime(f"{today} 12:00:00", '%d/%m/%Y %H:%M:%S')
-                            if now > noon:
-                                action = "Check-in not allowed after 12:00 PM."
+                            # No existing attendance record, process check-in
+                            action = f"Check-in successful for {name} at {time_str}"
+                            print(f"[TIME] Check-in successful at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+                            success, expected_checkout, day_status = log_attendance(company_id, name, 'checkin')
+                            
+                            if success:
+                                action = f"Checked in successfully. Expected check-out: {expected_checkout}. Day Status: {day_status}"
+                                print(f"[TIME] Check-in image saved at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
+                                image_path = os.path.join(TEMP_CHECKIN_IMAGES_DIR, f"{company_id}_{name}_{today.replace('/', '-')}.jpg")
+                                try:
+                                    image.save(image_path)
+                                    logger.info(f"Saved check-in image: {name}")
+                                except Exception as e:
+                                    logger.error(f"Error saving check-in image: {str(e)}")
+                                    action += " (Warning: Failed to save check-in image)"
                             else:
-                                success, expected_checkout, day_status = log_attendance(company_id, name, 'checkin')
-                                if success:
-                                    action = f"Checked in successfully. Expected check-out: {expected_checkout}. Day Status: {day_status}"
-                                    image_path = os.path.join(TEMP_CHECKIN_IMAGES_DIR, f"{company_id}_{name}_{today.replace('/', '-')}.jpg")
-                                    try:
-                                        image.save(image_path)
-                                        logger.info(f"Saved check-in image: {name}")
-                                    except Exception as e:
-                                        logger.error(f"Error saving check-in image: {str(e)}")
-                                        action += " (Warning: Failed to save check-in image)"
-                                else:
-                                    action = "Error processing check-in."
+                                action = "Error processing check-in."
                         else:
+                            # Existing attendance record, process checkout or already completed
                             last_record = today_records[-1]
                             checkin_time = datetime.strptime(last_record[2], '%H:%M:%S') if last_record[2] else None
                             checkout_time = datetime.strptime(last_record[3], '%H:%M:%S') if last_record[3] else None
 
+                            print(f"[DEBUG] Existing record found - Checkin: {last_record[2]}, Checkout: {last_record[3]}")
+
                             if checkout_time:
                                 action = 'Attendance completed for today'
+                                print(f"[TIME] Attendance already completed at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
                             elif checkin_time and not checkout_time:
-                                time_since_checkin = now - datetime.combine(date.today(), checkin_time.time())
-                                expected_checkout = datetime.strptime(last_record[5], '%H:%M:%S') if last_record[5] else datetime.strptime('18:30:00', '%H:%M:%S')
+                                time_since_checkin = now - (datetime.combine(date.today(), checkin_time.time()) + india_offset)
                                 if time_since_checkin >= timedelta(hours=7):
+                                    print(f"[TIME] Checkout allowed - processing at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
                                     success, hours, day_status = log_attendance(company_id, name, 'checkout')
                                     if success:
                                         action = f"Checked out successfully. Hours: {hours}. Day Status: {day_status}"
+                                        print(f"[TIME] Check-out successful at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
                                         image_path = os.path.join(TEMP_CHECKIN_IMAGES_DIR, f"{company_id}_{name}_{hours}_{today.replace('/', '-')}.jpg")
                                         if os.path.exists(image_path):
                                             try:
                                                 os.remove(image_path)
                                                 logger.info(f"Deleted check-in image: {name}")
+                                                print(f"[TIME] Check-in image deleted at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
                                             except Exception as e:
                                                 logger.error(f"Error deleting check-in image: {str(e)}")
                                     else:
                                         action = "Error processing check-out."
+                                        print(f"[TIME] Check-out failed at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
                                 else:
-                                    time_to_checkout = datetime.combine(date.today(), expected_checkout.time()) - now
-                                    if time_to_checkout.total_seconds() > 0:
-                                        hours, remainder = divmod(time_to_checkout.total_seconds(), 3600)
-                                        minutes, _ = divmod(remainder, 60)
-                                        action = f"Cannot check out yet, wait until {last_record[5]} ({int(hours)}h {int(minutes)}m)"
-                                    else:
-                                        action = f"Cannot check out yet, minimum 7 hours required."
+                                    time_to_checkout = datetime.combine(date.today(), datetime.strptime(last_record[5], '%H:%M:%S').time()) - now
+                                    action = f"Cannot check out yet, minimum 7 hours required."
+                                    print(f"[TIME] Check-out denied at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST - Insufficient hours")
                             else:
                                 action = 'Invalid attendance state'
+                                print(f"[TIME] Invalid attendance state at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
                     else:
                         name = "Unknown"
                         action = "Unknown user."
+                        print(f"[TIME] Unknown user detected at: {current_time.strftime('%Y-%m-%d %H:%M:%S')} IST")
                 except Exception as e:
                     logger.error(f"Error matching face: {str(e)}")
                     return jsonify({'action': 'Error matching face. Ensure the face matches a registered user.', 'name': name}), 500
@@ -2253,6 +2641,30 @@ def user_panel():
             return jsonify({'action': f'Unexpected server error: {str(e)}', 'name': name}), 500
 
     return render_template('user_panel.html', name=name, action=action, known_faces=known_faces)
+
+
+import re
+
+def get_company_times(company_id):
+    try:
+        result = service.spreadsheets().values().get(spreadsheetId=SHEET_ID, range='Companies!A2:G').execute()
+        companies = result.get('values', [])
+        for company in companies:
+            if company[0] == company_id:
+                # Validate time format (HH:MM or HH:MM:SS)
+                check_in = company[4] if len(company) > 4 and company[4] and re.match(r'^\d{2}:\d{2}(:\d{2})?$', company[4]) else None
+                check_out = company[5] if len(company) > 5 and company[5] and re.match(r'^\d{2}:\d{2}(:\d{2})?$', company[5]) else None
+                required_hours = float(company[6]) if len(company) > 6 and company[6] and company[6].replace('.', '', 1).isdigit() else None
+                if check_in and check_out and required_hours:
+                    return check_in, check_out, required_hours
+                break
+        logger.error(f"Company times not set for company_id: {company_id}")
+        return None, None, None  # Return None values instead of redirect
+    except Exception as e:
+        logger.error(f"Error fetching company times: {e}")
+        return None, None, None  # Return None values instead of redirect
+
+
 
 @app.route('/mark_attendance', methods=['POST'])
 def mark_attendance():
